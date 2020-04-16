@@ -110,7 +110,7 @@ read_changelog() {
     if [ "$OTA_SERVER_CHANGELOG" = "none" ]; then
         echo "No changelog provided."
     else
-        echo -ne "Changelog: \n$OTA_SERVER_CHANGELOG"
+        echo -e "Changelog: \n$OTA_SERVER_CHANGELOG"
     fi
 }
 
