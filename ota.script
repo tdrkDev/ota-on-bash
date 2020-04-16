@@ -69,7 +69,7 @@ variable_check_stage_2() {
         echo "Check $OTA_SCRIPT_CONFIG_FILE for lversion!"
         exit 1
     fi
-    if [ ! $OTA_SERVER_CHANGELOG ]; then
+    if [ ! "$OTA_SERVER_CHANGELOG" ]; then
         echo "Check $OTA_SCRIPT_SERVER_CONFIG_FILE for wchangelog!"
         exit 1
     fi
@@ -107,8 +107,8 @@ prepare_update() {
 
 read_changelog() {
     # Check if changelog provided...
-    if [ $OTA_SERVER_CHANGELOG = "none" ]; then
-        echo "No changelog provided. Detailed information in $HOME/.ota.$OTA_UPDATE_ID.log"
+    if [ "$OTA_SERVER_CHANGELOG" = "none" ]; then
+        echo "No changelog provided."
     else
         echo -ne "Changelog: \n$OTA_SERVER_CHANGELOG"
     fi
