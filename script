@@ -1,0 +1,33 @@
+#!/bin/bash
+
+echo "OTA updater example script"
+
+abort() {
+    echo "$1"
+    exit 1
+}
+
+launch_ota_update() {
+    export OTA_SCRIPT_REPOSITORY="https://github.com/RomanDesigner/ota-on-bash.git"
+    export OTA_SCRIPT_LOCAL_HOME="$PWD"
+    export OTA_SCRIPT_SERVER_CONFIG_FILE="ota.server.cfg"
+    export OTA_SCRIPT_CONFIG_FILE="ota.local.cfg"
+    export OTA_UPDATER_SCRIPT="ota.script"
+    
+    source $OTA_SCRIPT_LOCAL_HOME/$OTA_UPDATER_SCRIPT || abort "OTA: Can't launch OTA updater script"
+}
+
+echo "My Super Script: choose a function:"
+echo "   1: Update script"
+echo "   0: Exit"
+echo -n "Choose: "
+read choose
+
+case "$choose" in
+    1) launch_ota_update
+    ;;
+    0) abort "Goodbye!"
+    ;;
+    *) abort "Option not supported!"
+    ;;
+esac

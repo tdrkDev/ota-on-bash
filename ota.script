@@ -1,0 +1,201 @@
+#!/bin/bash
+
+#
+# OTA updater
+#
+# v. 1.0
+#
+# Notice: you can set OTA_SERVER_CHANGELOG to 'none' for updating w/o changelog.
+# Notice: you can set your own OTA_UPDATE_ID via OTA_CUSTOM_UPDATE_ID in server config,
+#         OTA_UPDATE_ID used in log name
+
+# Main functions
+
+abort() {
+    echo "$1"
+    exit 1
+}
+
+generate_id() {
+    if [ -z $OTA_CUSTOM_UPDATE_ID ]; then
+        OTA_UPDATE_ID=$(echo $(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 6 | head -n 1))
+    else
+        OTA_UPDATE_ID=$OTA_CUSTOM_UPDATE_ID
+    fi
+}
+
+log() {
+    echo -n "$1" > $HOME/.ota.$OTA_UPDATE_ID.log
+}
+
+sversion() {
+    export OTA_SERVER_VERSION_MASTER="$1"
+    export OTA_SERVER_VERSION_SUB="$2"
+    export OTA_SERVER_VERSION_ADD="$3"
+}
+
+lversion() {
+    export OTA_LOCAL_VERSION_MASTER="$1"
+    export OTA_LOCAL_VERSION_SUB="$2"
+    export OTA_LOCAL_VERSION_ADD="$3"
+}
+
+wchangelog() {
+    export OTA_SERVER_CHANGELOG="$1"
+}
+
+variable_check_stage_2() {
+    if [ ! $OTA_SERVER_VERSION_MASTER ]; then
+        echo "Check $OTA_SCRIPT_SERVER_CONFIG_FILE for sversion!"
+        exit 1
+    fi
+    if [ ! $OTA_SERVER_VERSION_SUB ]; then
+        echo "Check $OTA_SCRIPT_SERVER_CONFIG_FILE for sversion!"
+        exit 1
+    fi
+    if [ ! $OTA_SERVER_VERSION_ADD ]; then
+        echo "Check $OTA_SCRIPT_SERVER_CONFIG_FILE for sversion!"
+        exit 1
+    fi
+    if [ ! $OTA_LOCAL_VERSION_MASTER ]; then
+        echo "Check $OTA_SCRIPT_CONFIG_FILE for lversion!"
+        exit 1
+    fi
+    if [ ! $OTA_LOCAL_VERSION_SUB ]; then
+        echo "Check $OTA_SCRIPT_CONFIG_FILE for lversion!"
+        exit 1
+    fi
+    if [ ! $OTA_LOCAL_VERSION_ADD ]; then
+        echo "Check $OTA_SCRIPT_CONFIG_FILE for lversion!"
+        exit 1
+    fi
+    if [ ! $OTA_SERVER_CHANGELOG ]; then
+        echo "Check $OTA_SCRIPT_SERVER_CONFIG_FILE for wchangelog!"
+        exit 1
+    fi
+}
+
+variable_check_stage_1() {
+    if [ ! $OTA_SCRIPT_SERVER_CONFIG_FILE ]; then
+        echo "Please define variable 'OTA_SCRIPT_SERVER_CONFIG_FILE'!"
+        exit 1
+    fi
+    if [ ! $OTA_SCRIPT_CONFIG_FILE ]; then
+        echo "Please define variable 'OTA_SCRIPT_CONFIG_FILE'!"
+        exit 1
+    fi
+    if [ ! $OTA_SCRIPT_REPOSITORY ]; then
+        echo "Please define variable 'OTA_SCRIPT_REPOSITORY'!"
+        exit 1
+    fi
+    if [ ! $OTA_SCRIPT_LOCAL_HOME ]; then
+        echo "Please define variable 'OTA_SCRIPT_LOCAL_HOME'!"
+        exit 1
+    fi
+}
+
+prepare_update() {
+    mkdir ~/.otatemp
+    ( git clone $OTA_SCRIPT_REPOSITORY ~/.otatemp/server_repo > /dev/null 2> /dev/null ) || abort "OTA: Error cloning script repository."
+    if [ ! -f ~/.otatemp/server_repo/$OTA_SCRIPT_SERVER_CONFIG_FILE ]; then
+        abort "OTA: server config for OTA update not found!"
+    fi
+    if [ ! -f $OTA_SCRIPT_LOCAL_HOME/$OTA_SCRIPT_CONFIG_FILE ]; then
+        abort "OTA: local config for OTA update not found!"
+    fi
+}
+
+read_changelog() {
+    # Check if changelog provided...
+    if [ $OTA_SERVER_CHANGELOG = "none" ]; then
+        echo "No changelog provided. Detailed information in $HOME/.ota.$OTA_UPDATE_ID.log"
+    else
+        echo -ne "Changelog: \n$OTA_SERVER_CHANGELOG"
+    fi
+}
+
+checks_for_update() {
+    # Get version info and changelog
+    
+    source ~/.otatemp/server_repo/$OTA_SCRIPT_SERVER_CONFIG_FILE
+    source $OTA_SCRIPT_LOCAL_HOME/$OTA_SCRIPT_CONFIG_FILE
+    
+    # Generate OTA_UPDATE_ID variable
+    
+    generate_id
+    
+    # Check variables
+    
+    variable_check_stage_2
+    
+    # Set update priority
+    
+    if [ $OTA_SERVER_VERSION_MASTER -gt $OTA_LOCAL_VERSION_MASTER ]; then
+    OTA_UPDATE_PRIORITY=1
+    elif [ $OTA_SERVER_VERSION_SUB -gt $OTA_LOCAL_VERSION_SUB ]; then
+    OTA_UPDATE_PRIORITY=2
+    elif [ $OTA_SERVER_VERSION_ADD -gt $OTA_LOCAL_VERSION_ADD ]; then
+    OTA_UPDATE_PRIORITY=3
+    else
+    OTA_UPDATE_PRIORITY=0
+    fi
+    
+    if [ $OTA_UPDATE_PRIORITY = "1" ]; then
+        read_changelog
+        echo "Big update out! Will you install it? (Y/n)"
+        read OTA_UPDATE_ASK
+    fi
+    
+    if [ $OTA_UPDATE_PRIORITY = "2" ]; then
+        read_changelog
+        echo -n "New update out! Will you install it? (Y/n)"
+        read OTA_UPDATE_ASK
+    fi
+    
+    if [ $OTA_UPDATE_PRIORITY = "3" ]; then
+        read_changelog
+        echo -n "Bugfix out! Will you install it? (Y/n)"
+        read OTA_UPDATE_ASK
+    fi
+    
+    if [ $OTA_UPDATE_PRIORITY = "0" ]; then
+        echo "No updates found!"
+        OTA_UPDATE_ASK="n"
+    fi
+}
+
+update() {
+    case "$OTA_UPDATE_ASK" in
+    n|N) abort "Aborting installation..."
+    ;;
+    
+    y|Y) echo "Installing update..."
+    sleep 0.5
+    echo "Removing old script..."
+    rm -rf $OTA_SCRIPT_LOCAL_HOME/*
+    echo "Updating... [ 0/3 ]"
+    cp -r ~/.otatemp/server_repo/* $OTA_SCRIPT_LOCAL_HOME
+    echo "Updating... [ 1/3 ]"
+    rm -rf ~/.otatemp
+    echo "Updating... [ 2/3 ]"
+    rm $OTA_SCRIPT_LOCAL_HOME/$OTA_SCRIPT_SERVER_CONFIG_FILE
+    echo "Updated! [ 3/3 ]"
+    echo "Updated successfully!"
+    ;;
+    
+    *) abort "Option not supported."
+    ;;
+    
+    esac
+}
+
+# Checking script info
+
+variable_check_stage_1
+
+# Updating
+
+prepare_update
+checks_for_update
+update
+
