@@ -167,6 +167,7 @@ checks_for_update() {
 update() {
     case "$OTA_UPDATE_ASK" in
     n|N) abort "Aborting installation..."
+    rm -rf ~/.otatemp
     ;;
     
     y|Y) echo "Installing update..."
